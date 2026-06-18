@@ -10,4 +10,4 @@ build/
 
 .claude
 *.csv
-docs/superpowers
+docs/superpowers.DS_Store
