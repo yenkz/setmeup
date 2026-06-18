@@ -88,4 +88,31 @@ def test_unresolvable_track_is_failed(cfg, monkeypatch):
 
     failed = repo.get_tracks_by_status(conn, TrackStatus.FAILED.value)
     assert len(failed) == 1
-    assert "resolve" in failed[0].error
+    assert failed[0].error == "could not resolve artist/title"
+
+
+def test_below_min_quality_is_failed(cfg, monkeypatch):
+    cfg.complete_dir.mkdir(parents=True)
+    (cfg.complete_dir / "low.mp3").write_bytes(b"fake")
+
+    monkeypatch.setattr(process_mod, "fingerprint_file", lambda path: (180.0, "FP"))
+    monkeypatch.setattr(
+        process_mod,
+        "resolve_metadata",
+        lambda path, fp, dur, key: ResolvedMetadata("Artist", "Title", None, None, "filename"),
+    )
+    from setmeup.audio.quality import AudioInfo
+
+    monkeypatch.setattr(
+        process_mod,
+        "probe_audio",
+        lambda path: AudioInfo(ext="mp3", bitrate=128, sample_rate=44100, duration=180.0),
+    )
+
+    conn = connect(cfg.db_path)
+    init_schema(conn)
+    process_mod.process_folder(conn, cfg)
+
+    failed = repo.get_tracks_by_status(conn, TrackStatus.FAILED.value)
+    assert len(failed) == 1
+    assert failed[0].error == "below minimum quality"
