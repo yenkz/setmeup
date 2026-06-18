@@ -81,3 +81,17 @@ def test_transfer_error_marks_failed(conn, make_config):
     )
     counts = fetch_mod.fetch(conn, cfg, client)
     assert counts.get("failed") == 1
+
+
+def test_search_exception_marks_failed(conn, make_config):
+    cfg = make_config()
+    _want(conn)
+
+    class BoomClient(FakeClient):
+        def search(self, text):
+            raise RuntimeError("slskd unreachable")
+
+    client = BoomClient(files=[], complete_dir=cfg.complete_dir)
+    counts = fetch_mod.fetch(conn, cfg, client)
+
+    assert counts.get("failed") == 1
