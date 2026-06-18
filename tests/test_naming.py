@@ -21,3 +21,11 @@ def test_sanitize_strips_illegal_characters():
 
 def test_sanitize_collapses_whitespace():
     assert sanitize("a    b   c") == "a b c"
+
+
+def test_empty_version_is_omitted():
+    assert build_canonical_name("Daft Punk", "Around the World", "") == "Daft Punk - Around the World"
+
+
+def test_sanitize_trims_surrounding_whitespace():
+    assert sanitize("  hello world  ") == "hello world"

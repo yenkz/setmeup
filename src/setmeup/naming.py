@@ -9,6 +9,8 @@ _ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 def sanitize(name: str) -> str:
     cleaned = _ILLEGAL.sub("", name)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    # Strip leading/trailing dots: a leading dot creates a hidden file on Unix,
+    # and a trailing dot is invalid in Windows filenames.
     return cleaned.strip(".")
 
 
