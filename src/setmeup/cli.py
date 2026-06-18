@@ -14,6 +14,7 @@ from setmeup.acquire.importer import import_entries
 from setmeup.slskd.client import SlskdClient
 from setmeup.config import Config, DEFAULT_CONFIG_TOML
 from setmeup.sources.csv_source import CsvSource
+from setmeup.sources.spotify import SpotifySource, build_client, list_playlists
 from setmeup.sources.wantlist import WantlistSource
 from setmeup.state import repository as repo
 from setmeup.state import wants as wants_repo
@@ -23,6 +24,27 @@ app = typer.Typer(help="setmeup - DJ music library pipeline")
 console = Console()
 
 ConfigOption = typer.Option(Path("setmeup.toml"), "--config", help="Path to config TOML")
+
+spotify_app = typer.Typer(help="Spotify auth and playlist listing")
+app.add_typer(spotify_app, name="spotify")
+
+
+@spotify_app.command("auth")
+def spotify_auth(config: Path = ConfigOption):
+    """Run the one-time Spotify OAuth flow and cache the token."""
+    cfg = Config.from_toml(config)
+    build_client(cfg).current_user()
+    console.print("[green]Spotify authenticated.[/]")
+
+
+@spotify_app.command("playlists")
+def spotify_playlists(config: Path = ConfigOption):
+    """List your Spotify playlists."""
+    cfg = Config.from_toml(config)
+    table = Table("id", "name", "tracks", title="Spotify playlists")
+    for pid, name, total in list_playlists(build_client(cfg)):
+        table.add_row(pid, name, str(total))
+    console.print(table)
 
 
 def _open(config_path: Path):
@@ -80,18 +102,19 @@ def import_(
     config: Path = ConfigOption,
     wantlist: Optional[Path] = typer.Option(None, "--wantlist", help="Wantlist .txt"),
     csv: Optional[Path] = typer.Option(None, "--csv", help="exportify CSV"),
+    spotify: Optional[str] = typer.Option(None, "--spotify", help="Spotify playlist name or id"),
 ):
     """Import a source into the wants table."""
-    if sum(x is not None for x in (wantlist, csv)) != 1:
-        console.print("[red]Specify exactly one of --wantlist / --csv[/]")
+    if sum(x is not None for x in (wantlist, csv, spotify)) != 1:
+        console.print("[red]Specify exactly one of --wantlist / --csv / --spotify[/]")
         raise typer.Exit(2)
     cfg, conn = _open(config)
     if wantlist is not None:
-        source, ref = WantlistSource(wantlist), str(wantlist)
-        name = "wantlist"
+        source, ref, name = WantlistSource(wantlist), str(wantlist), "wantlist"
+    elif csv is not None:
+        source, ref, name = CsvSource(csv), str(csv), "csv"
     else:
-        source, ref = CsvSource(csv), str(csv)
-        name = "csv"
+        source, ref, name = SpotifySource(build_client(cfg), spotify), spotify, "spotify"
     result = import_entries(conn, name, ref, source.entries())
     console.print(
         f"[green]imported {result.imported}[/], "
