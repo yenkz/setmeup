@@ -1,6 +1,6 @@
 import pytest
 
-from setmeup.slskd.client import SlskdClient
+from setmeup.slskd.client import SlskdClient, SlskdError
 
 
 class FakeResponse:
@@ -63,3 +63,18 @@ def test_transfer_state_finds_file():
     ]
     client = SlskdClient("http://x", "key", session=sess)
     assert client.transfer_state("bob", "music\\a.flac") == "Completed, Succeeded"
+
+
+def test_search_raises_on_missing_id():
+    sess = FakeSession()
+    sess.post_return = FakeResponse({})  # response has no "id"
+    client = SlskdClient("http://x", "key", session=sess)
+    with pytest.raises(SlskdError):
+        client.search("anything")
+
+
+def test_transfer_state_returns_not_found_when_absent():
+    sess = FakeSession()
+    sess.get_queue = [FakeResponse({"directories": []})]
+    client = SlskdClient("http://x", "key", session=sess)
+    assert client.transfer_state("bob", "missing.flac") == "NotFound"
