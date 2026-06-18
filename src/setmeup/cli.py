@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -8,8 +9,12 @@ from rich.table import Table
 
 from setmeup import organize as organize_mod
 from setmeup import process as process_mod
+from setmeup.acquire.importer import import_entries
 from setmeup.config import Config, DEFAULT_CONFIG_TOML
+from setmeup.sources.csv_source import CsvSource
+from setmeup.sources.wantlist import WantlistSource
 from setmeup.state import repository as repo
+from setmeup.state import wants as wants_repo
 from setmeup.state.db import connect, init_schema
 
 app = typer.Typer(help="setmeup - DJ music library pipeline")
@@ -66,6 +71,43 @@ def status(config: Path = ConfigOption):
     """Show track counts by pipeline state."""
     _, conn = _open(config)
     _print_status(conn)
+
+
+@app.command("import")
+def import_(
+    config: Path = ConfigOption,
+    wantlist: Optional[Path] = typer.Option(None, "--wantlist", help="Wantlist .txt"),
+    csv: Optional[Path] = typer.Option(None, "--csv", help="exportify CSV"),
+):
+    """Import a source into the wants table."""
+    if sum(x is not None for x in (wantlist, csv)) != 1:
+        console.print("[red]Specify exactly one of --wantlist / --csv[/]")
+        raise typer.Exit(2)
+    cfg, conn = _open(config)
+    if wantlist is not None:
+        source, ref = WantlistSource(wantlist), str(wantlist)
+        name = "wantlist"
+    else:
+        source, ref = CsvSource(csv), str(csv)
+        name = "csv"
+    result = import_entries(conn, name, ref, source.entries())
+    console.print(
+        f"[green]imported {result.imported}[/], "
+        f"already_have {result.already_have}, duplicates {result.duplicates}"
+    )
+
+
+@app.command()
+def wants(config: Path = ConfigOption):
+    """Show want counts by status."""
+    _, conn = _open(config)
+    counts = wants_repo.count_wants_by_status(conn)
+    table = Table("Want status", "Count", title="setmeup wants")
+    for status, count in sorted(counts.items()):
+        table.add_row(status, str(count))
+    if not counts:
+        table.add_row("(none)", "0")
+    console.print(table)
 
 
 if __name__ == "__main__":
