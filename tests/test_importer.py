@@ -38,3 +38,10 @@ def test_duplicate_entries_counted_not_reinserted(conn):
     entries = [WantlistEntry("A", "T"), WantlistEntry("A", "T")]
     result = import_entries(conn, "wantlist", "wl.txt", entries)
     assert result == ImportResult(imported=1, already_have=0, duplicates=1)
+
+
+def test_reimport_same_entry_counts_as_duplicate(conn):
+    first = import_entries(conn, "wantlist", "wl.txt", [WantlistEntry("A", "T")])
+    second = import_entries(conn, "wantlist", "wl.txt", [WantlistEntry("A", "T")])
+    assert first == ImportResult(imported=1, already_have=0, duplicates=0)
+    assert second == ImportResult(imported=0, already_have=0, duplicates=1)
