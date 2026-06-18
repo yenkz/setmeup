@@ -103,3 +103,9 @@ def library_quality_by_key(conn: sqlite3.Connection) -> dict[str, int]:
         "GROUP BY dedupe_key"
     ).fetchall()
     return {row["dedupe_key"]: int(row["q"]) for row in rows}
+
+
+def all_library_entries(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT artist, title, version FROM library_index"
+    ).fetchall()

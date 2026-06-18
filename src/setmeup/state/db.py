@@ -34,6 +34,27 @@ CREATE TABLE IF NOT EXISTS library_index (
 );
 
 CREATE INDEX IF NOT EXISTS idx_library_key ON library_index(dedupe_key);
+
+CREATE TABLE IF NOT EXISTS wants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    source_ref TEXT,
+    artist TEXT NOT NULL,
+    title TEXT NOT NULL,
+    version TEXT,
+    album TEXT,
+    duration_ms INTEGER,
+    spotify_uri TEXT,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL,
+    slskd_username TEXT,
+    slskd_filename TEXT,
+    downloaded_path TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
