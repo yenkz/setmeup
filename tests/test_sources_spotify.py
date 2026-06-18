@@ -50,3 +50,17 @@ def test_source_yields_entries_and_skips_local_null():
     assert entries[0].artist == "Aphex Twin"
     assert entries[0].title == "Xtal"
     assert entries[0].duration_ms == 294000
+
+
+def test_source_skips_track_without_id():
+    sp = FakeSpotify(
+        me="yenkz",
+        playlists=[{"id": "p1", "name": "Vinyl", "owner": {"id": "yenkz"},
+                    "tracks": {"total": 1}}],
+        items=[
+            {"track": {"id": None, "name": "Unavailable", "is_local": False,
+                       "artists": [{"name": "Ghost"}],
+                       "album": {"name": "A"}, "duration_ms": 1000}},
+        ],
+    )
+    assert list(SpotifySource(sp, "Vinyl").entries()) == []
