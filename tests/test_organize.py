@@ -20,6 +20,16 @@ def cfg(tmp_path):
         format_priority=["wav", "flac", "mp3"],
         min_mp3_bitrate=320,
         match_threshold=0.8,
+        slskd_base_url="http://localhost:5030",
+        slskd_api_key=None,
+        spotify_client_id=None,
+        spotify_client_secret=None,
+        spotify_redirect_uri="http://127.0.0.1:8888/callback",
+        search_timeout_seconds=10,
+        download_timeout_seconds=300,
+        search_concurrency=8,
+        download_attempts=3,
+        duration_tolerance_seconds=20,
     )
 
 
