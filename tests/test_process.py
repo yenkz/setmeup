@@ -116,3 +116,18 @@ def test_below_min_quality_is_failed(cfg, monkeypatch):
     failed = repo.get_tracks_by_status(conn, TrackStatus.FAILED.value)
     assert len(failed) == 1
     assert failed[0].error == "below minimum quality"
+
+
+def test_discover_excludes_library_and_trash(tmp_path):
+    complete = tmp_path / "Complete"
+    library = complete / "Library"
+    trash = complete / "Trash"
+    library.mkdir(parents=True)
+    trash.mkdir(parents=True)
+    (complete / "keep.wav").write_bytes(b"x")
+    (library / "organized.wav").write_bytes(b"x")
+    (trash / "evicted.wav").write_bytes(b"x")
+
+    found = process_mod.discover(complete, exclude_dirs=(library, trash))
+
+    assert sorted(p.name for p in found) == ["keep.wav"]

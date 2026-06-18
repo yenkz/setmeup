@@ -15,19 +15,34 @@ from setmeup.state.models import TrackStatus
 AUDIO_EXTS = {".wav", ".aiff", ".aif", ".flac", ".mp3"}
 
 
-def discover(complete_dir: Path) -> list[Path]:
+def discover(
+    complete_dir: Path, exclude_dirs: tuple[Path, ...] = ()
+) -> list[Path]:
     if not complete_dir.exists():
         return []
+    excludes = [d.resolve() for d in exclude_dirs]
+
+    def _excluded(path: Path) -> bool:
+        resolved = path.resolve()
+        return any(
+            resolved == directory or resolved.is_relative_to(directory)
+            for directory in excludes
+        )
+
     return sorted(
         path
         for path in complete_dir.rglob("*")
-        if path.is_file() and path.suffix.lower() in AUDIO_EXTS
+        if path.is_file()
+        and path.suffix.lower() in AUDIO_EXTS
+        and not _excluded(path)
     )
 
 
 def process_folder(conn: sqlite3.Connection, config: Config) -> None:
     # 1. Register newly seen files.
-    for path in discover(config.complete_dir):
+    for path in discover(
+        config.complete_dir, exclude_dirs=(config.library_dir, config.trash_dir)
+    ):
         repo.add_track(conn, str(path), TrackStatus.DOWNLOADED.value)
 
     # 2. Fingerprint, resolve, score each freshly downloaded track.
