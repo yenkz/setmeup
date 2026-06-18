@@ -50,3 +50,11 @@ def test_rank_duration_sanity(make_config):
     preview = _cand("Daft Punk - Around the World (preview).flac", bitrate=900, length=30)
     ranked = rank(target, [good, preview], cfg)
     assert [c.filename for c in ranked] == ["Daft Punk - Around the World.flac"]
+
+
+def test_rank_duration_check_rejects_zero_length(make_config):
+    cfg = make_config()
+    target = SelectionTarget("Daft Punk", "Around the World", None, duration_ms=420000)
+    zero_len = _cand("Daft Punk - Around the World.flac", bitrate=900, length=0)
+    # length=0 is "known" (not None) and far from 420s, so it must be rejected.
+    assert rank(target, [zero_len], cfg) == []

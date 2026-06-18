@@ -85,7 +85,7 @@ def rank(target: SelectionTarget, candidates: list[Candidate], config) -> list[C
         confidence = fuzz.token_set_ratio(_stem(cand.filename), match_str)
         if confidence < config.match_threshold * 100:
             continue
-        if target.duration_ms and cand.length:
+        if target.duration_ms is not None and cand.length is not None:
             if abs(cand.length - target.duration_ms / 1000) > config.duration_tolerance_seconds:
                 continue
         scored.append((quality, confidence, cand.free_slot, cand.upload_speed,
