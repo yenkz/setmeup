@@ -58,7 +58,7 @@ def make_config(tmp_path):
             spotify_redirect_uri="http://127.0.0.1:8888/callback",
             search_timeout_seconds=10,
             download_timeout_seconds=300,
-            search_concurrency=4,
+            search_concurrency=8,
             download_attempts=3,
             duration_tolerance_seconds=20,
         )
