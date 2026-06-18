@@ -47,6 +47,12 @@ def test_count_by_status(conn):
     assert counts == {"downloaded": 2, "organized": 1}
 
 
+def test_update_track_rejects_unknown_column(conn):
+    tid = repo.add_track(conn, "/music/a.wav", TrackStatus.DOWNLOADED.value)
+    with pytest.raises(ValueError):
+        repo.update_track(conn, tid, not_a_column="x")
+
+
 def test_library_entry_roundtrip_and_eviction(conn):
     repo.add_library_entry(conn, "rec-1", "/lib/x.wav", 100, "A", "T", None)
     entry = repo.get_library_entry_by_key(conn, "rec-1")

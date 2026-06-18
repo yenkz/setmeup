@@ -6,6 +6,8 @@ from typing import Optional
 from setmeup.state.models import Track
 
 _TRACK_FIELDS = set(Track.__dataclass_fields__)
+# Columns that update_track may set (everything except the id primary key).
+_UPDATABLE_TRACK_COLUMNS: set[str] = _TRACK_FIELDS - {"id"}
 
 
 def _row_to_track(row: sqlite3.Row) -> Track:
@@ -27,6 +29,9 @@ def add_track(conn: sqlite3.Connection, source_path: str, status: str) -> int:
 def update_track(conn: sqlite3.Connection, track_id: int, **fields) -> None:
     if not fields:
         return
+    unknown = set(fields) - _UPDATABLE_TRACK_COLUMNS
+    if unknown:
+        raise ValueError(f"Unknown track columns: {sorted(unknown)}")
     assignments = ", ".join(f"{column} = ?" for column in fields)
     values = list(fields.values()) + [track_id]
     conn.execute(
