@@ -10,4 +10,5 @@ build/
 
 .claude
 *.csv
-docs/superpowers.DS_Store
+docs/superpowers
+.DS_Store
