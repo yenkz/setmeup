@@ -9,7 +9,9 @@ from rich.table import Table
 
 from setmeup import organize as organize_mod
 from setmeup import process as process_mod
+from setmeup.acquire import fetch as fetch_mod
 from setmeup.acquire.importer import import_entries
+from setmeup.slskd.client import SlskdClient
 from setmeup.config import Config, DEFAULT_CONFIG_TOML
 from setmeup.sources.csv_source import CsvSource
 from setmeup.sources.wantlist import WantlistSource
@@ -103,6 +105,25 @@ def wants(config: Path = ConfigOption):
     _, conn = _open(config)
     counts = wants_repo.count_wants_by_status(conn)
     table = Table("Want status", "Count", title="setmeup wants")
+    for status, count in sorted(counts.items()):
+        table.add_row(status, str(count))
+    if not counts:
+        table.add_row("(none)", "0")
+    console.print(table)
+
+
+@app.command()
+def fetch(
+    config: Path = ConfigOption,
+    retry: bool = typer.Option(False, "--retry", help="Also re-attempt failed/no_match wants"),
+    limit: int = typer.Option(0, "--limit", help="Max wants to process (0 = all)"),
+):
+    """Search slskd and download pending wants into Complete/."""
+    cfg, conn = _open(config)
+    client = SlskdClient(cfg.slskd_base_url, cfg.slskd_api_key)
+    statuses = ("wanted",) + (("failed", "no_match") if retry else ())
+    counts = fetch_mod.fetch(conn, cfg, client, statuses=statuses, limit=limit)
+    table = Table("Want status", "Count", title="setmeup fetch")
     for status, count in sorted(counts.items()):
         table.add_row(status, str(count))
     if not counts:

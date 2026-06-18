@@ -46,6 +46,13 @@ def _write_config(tmp_path):
     return config
 
 
+def test_fetch_with_no_wants_runs(tmp_path):
+    config = _write_config(tmp_path)
+    result = runner.invoke(app, ["fetch", "--config", str(config)])
+    assert result.exit_code == 0
+    assert "fetch" in result.stdout.lower()
+
+
 def test_import_wantlist_then_wants(tmp_path):
     config = _write_config(tmp_path)
     wl = tmp_path / "wl.txt"
