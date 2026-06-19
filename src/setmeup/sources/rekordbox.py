@@ -78,3 +78,75 @@ def decode_location(
             raw = new + raw[len(old):]
             break
     return Path(raw)
+
+
+def _ext(path: Path) -> str:
+    return path.suffix.lstrip(".").lower()
+
+
+@dataclass
+class RekordboxScanResult:
+    total: int
+    present: int
+    missing: int
+    skipped_non_audio: int
+    missing_entries: list[WantlistEntry]
+
+    @property
+    def missing_fraction(self) -> float:
+        denom = self.present + self.missing
+        return self.missing / denom if denom else 0.0
+
+    @property
+    def guard_tripped(self) -> bool:
+        return (self.present + self.missing) > 0 and self.missing_fraction > GUARD_THRESHOLD
+
+
+class RekordboxSource:
+    def __init__(self, path, playlists: list[str],
+                 remap: Optional[list[tuple[str, str]]] = None):
+        self.path = Path(path)
+        tracks, all_playlists = parse_collection(self.path)
+        unknown = [name for name in playlists if name not in all_playlists]
+        if unknown:
+            raise ValueError(f"playlist(s) not found: {unknown}")
+        seen: set[str] = set()
+        ids: list[str] = []
+        for name in playlists:
+            for tid in all_playlists[name]:
+                if tid not in seen:
+                    seen.add(tid)
+                    ids.append(tid)
+        self.scan = self._scan(tracks, ids, remap)
+
+    def _scan(self, tracks, ids, remap) -> RekordboxScanResult:
+        present = missing = skipped = 0
+        entries: list[WantlistEntry] = []
+        for tid in ids:
+            track = tracks.get(tid)
+            if track is None:
+                continue
+            file_path = decode_location(track.location, remap)
+            is_audio = _ext(file_path) in AUDIO_EXTS
+            exists = file_path.exists()
+            if not is_audio:
+                if not exists:
+                    skipped += 1
+                continue
+            if exists:
+                present += 1
+                continue
+            missing += 1
+            entries.append(WantlistEntry(
+                artist=track.artist,
+                title=track.name,
+                album=track.album,
+                duration_ms=track.total_time_s * 1000 if track.total_time_s else None,
+            ))
+        return RekordboxScanResult(
+            total=len(ids), present=present, missing=missing,
+            skipped_non_audio=skipped, missing_entries=entries,
+        )
+
+    def entries(self) -> Iterator[WantlistEntry]:
+        return iter(self.scan.missing_entries)

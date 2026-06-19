@@ -71,3 +71,128 @@ def test_decode_windows_drive_strips_leading_slash():
     assert decode_location(
         "file://localhost/C:/Music/x.mp3"
     ) == Path("C:/Music/x.mp3")
+
+
+import urllib.parse
+import xml.etree.ElementTree as ET
+
+import pytest
+
+from setmeup.sources.rekordbox import RekordboxSource
+
+
+def _loc(p) -> str:
+    return "file://localhost" + urllib.parse.quote(str(p))
+
+
+def _build(tmp_path, tracks, playlists):
+    """tracks: list of dicts (id, location, artist, name, album?, total?, kind?).
+    playlists: dict name -> list of track-id strings."""
+    root = ET.Element("DJ_PLAYLISTS", {"Version": "1.0.0"})
+    coll = ET.SubElement(root, "COLLECTION", {"Entries": str(len(tracks))})
+    for t in tracks:
+        attrs = {"TrackID": t["id"], "Location": t["location"],
+                 "Artist": t.get("artist", ""), "Name": t.get("name", "")}
+        if t.get("album"):
+            attrs["Album"] = t["album"]
+        if t.get("kind"):
+            attrs["Kind"] = t["kind"]
+        if t.get("total") is not None:
+            attrs["TotalTime"] = str(t["total"])
+        ET.SubElement(coll, "TRACK", attrs)
+    pls = ET.SubElement(root, "PLAYLISTS")
+    rootnode = ET.SubElement(pls, "NODE", {"Type": "0", "Name": "ROOT"})
+    for name, ids in playlists.items():
+        node = ET.SubElement(rootnode, "NODE",
+                             {"Type": "1", "Name": name, "KeyType": "0"})
+        for tid in ids:
+            ET.SubElement(node, "TRACK", {"Key": tid})
+    out = tmp_path / "collection.xml"
+    ET.ElementTree(root).write(out, encoding="utf-8", xml_declaration=True)
+    return out
+
+
+def test_scan_queues_missing_audio_only(tmp_path):
+    present = tmp_path / "have.flac"
+    present.write_bytes(b"x")
+    missing_audio = tmp_path / "gone.flac"       # not created
+    missing_video = tmp_path / "clip.mp4"        # not created
+    coll = _build(
+        tmp_path,
+        tracks=[
+            {"id": "1", "location": _loc(present), "artist": "A", "name": "Have"},
+            {"id": "2", "location": _loc(missing_audio), "artist": "B",
+             "name": "Gone", "total": 294},
+            {"id": "3", "location": _loc(missing_video), "artist": "C", "name": "Clip"},
+        ],
+        playlists={"Set": ["1", "2", "3"]},
+    )
+    scan = RekordboxSource(coll, ["Set"]).scan
+    assert (scan.present, scan.missing, scan.skipped_non_audio) == (1, 1, 1)
+    entries = list(RekordboxSource(coll, ["Set"]).entries())
+    assert len(entries) == 1
+    assert entries[0].artist == "B" and entries[0].title == "Gone"
+    assert entries[0].duration_ms == 294000
+
+
+def test_remap_makes_missing_file_present(tmp_path):
+    real = tmp_path / "real.flac"
+    real.write_bytes(b"x")
+    coll = _build(
+        tmp_path,
+        tracks=[{"id": "1", "location": "file://localhost/OLD/real.flac",
+                 "artist": "A", "name": "T"}],
+        playlists={"Set": ["1"]},
+    )
+    assert RekordboxSource(coll, ["Set"]).scan.missing == 1
+    remapped = RekordboxSource(coll, ["Set"], remap=[("/OLD", str(tmp_path))]).scan
+    assert remapped.present == 1 and remapped.missing == 0
+
+
+def test_playlist_union_dedups_track_ids(tmp_path):
+    f1 = tmp_path / "a.flac"
+    f1.write_bytes(b"x")
+    coll = _build(
+        tmp_path,
+        tracks=[{"id": "1", "location": _loc(f1), "artist": "A", "name": "T"}],
+        playlists={"P1": ["1"], "P2": ["1"]},
+    )
+    scan = RekordboxSource(coll, ["P1", "P2"]).scan
+    assert scan.total == 1 and scan.present == 1
+
+
+def test_unknown_playlist_raises(tmp_path):
+    coll = _build(tmp_path, tracks=[], playlists={"Real": []})
+    with pytest.raises(ValueError):
+        RekordboxSource(coll, ["Nope"])
+
+
+def test_guard_trips_when_mostly_missing(tmp_path):
+    present = tmp_path / "p.flac"
+    present.write_bytes(b"x")
+    tracks = [{"id": "0", "location": _loc(present), "artist": "A", "name": "P"}]
+    ids = ["0"]
+    for i in range(1, 20):  # 19 missing audio
+        tracks.append({"id": str(i),
+                       "location": f"file://localhost/gone/{i}.flac",
+                       "artist": "A", "name": f"M{i}"})
+        ids.append(str(i))
+    coll = _build(tmp_path, tracks=tracks, playlists={"Set": ids})
+    scan = RekordboxSource(coll, ["Set"]).scan
+    assert (scan.present, scan.missing) == (1, 19)
+    assert scan.guard_tripped is True
+
+
+def test_guard_not_tripped_when_mostly_present(tmp_path):
+    tracks, ids = [], []
+    for i in range(10):
+        f = tmp_path / f"p{i}.flac"
+        f.write_bytes(b"x")
+        tracks.append({"id": str(i), "location": _loc(f),
+                       "artist": "A", "name": f"P{i}"})
+        ids.append(str(i))
+    tracks.append({"id": "x", "location": "file://localhost/gone/x.flac",
+                   "artist": "A", "name": "X"})
+    ids.append("x")
+    coll = _build(tmp_path, tracks=tracks, playlists={"Set": ids})
+    assert RekordboxSource(coll, ["Set"]).scan.guard_tripped is False
