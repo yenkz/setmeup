@@ -136,3 +136,16 @@ def test_import_rekordbox_guard_aborts_without_force(tmp_path):
                                  "--force"])
     assert forced.exit_code == 0
     assert "imported 10" in forced.stdout
+
+
+def test_rekordbox_playlists_lists_names(tmp_path):
+    coll = _write_collection(
+        tmp_path,
+        tracks=[{"id": "1", "location": "file://localhost/m/a.flac",
+                 "artist": "A", "name": "T"}],
+        playlists={"Vinyl": ["1"], "Gigs": []},
+    )
+    result = runner.invoke(app, ["rekordbox", "playlists", str(coll)])
+    assert result.exit_code == 0
+    assert "Vinyl" in result.stdout
+    assert "Gigs" in result.stdout

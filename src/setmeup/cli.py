@@ -29,6 +29,20 @@ ConfigOption = typer.Option(Path("setmeup.toml"), "--config", help="Path to conf
 spotify_app = typer.Typer(help="Spotify auth and playlist listing")
 app.add_typer(spotify_app, name="spotify")
 
+rekordbox_app = typer.Typer(help="Rekordbox collection helpers")
+app.add_typer(rekordbox_app, name="rekordbox")
+
+
+@rekordbox_app.command("playlists")
+def rekordbox_playlists(
+    collection: Path = typer.Argument(..., help="Rekordbox collection.xml"),
+):
+    """List playlists (name + track count) in a Rekordbox collection.xml."""
+    table = Table("name", "tracks", title="Rekordbox playlists")
+    for name, count in list_rkb_playlists(collection):
+        table.add_row(name, str(count))
+    console.print(table)
+
 
 @spotify_app.command("auth")
 def spotify_auth(config: Path = ConfigOption):
