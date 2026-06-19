@@ -14,6 +14,7 @@ from setmeup.acquire.importer import import_entries
 from setmeup.slskd.client import SlskdClient
 from setmeup.config import Config, DEFAULT_CONFIG_TOML
 from setmeup.sources.csv_source import CsvSource
+from setmeup.sources.rekordbox import RekordboxSource, list_playlists as list_rkb_playlists
 from setmeup.sources.spotify import SpotifySource, build_client, list_playlists
 from setmeup.sources.wantlist import WantlistSource
 from setmeup.state import repository as repo
@@ -97,18 +98,65 @@ def status(config: Path = ConfigOption):
     _print_status(conn)
 
 
+def _parse_remap(remap: list[str]) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    for item in remap:
+        if "=" not in item:
+            console.print(f"[red]--remap must be OLD=NEW, got: {item!r}[/]")
+            raise typer.Exit(2)
+        old, new = item.split("=", 1)
+        pairs.append((old, new))
+    return pairs
+
+
+def _import_rekordbox(conn, path: Path, playlist: list[str],
+                      remap: list[str], force: bool) -> None:
+    if not playlist:
+        console.print("[red]--rekordbox requires at least one --playlist[/]")
+        raise typer.Exit(2)
+    try:
+        source = RekordboxSource(path, playlist, remap=_parse_remap(remap))
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(2)
+    scan = source.scan
+    if scan.guard_tripped and not force:
+        in_scope = scan.present + scan.missing
+        console.print(
+            f"[red]{scan.missing}/{in_scope} in-scope tracks missing — paths likely "
+            f"don't match this machine; use --remap or --force[/]"
+        )
+        raise typer.Exit(2)
+    console.print(
+        f"scanned {scan.total} · present {scan.present} · "
+        f"missing {scan.missing} (queued) · skipped {scan.skipped_non_audio} non-audio"
+    )
+    result = import_entries(conn, "rekordbox", str(path), source.entries())
+    console.print(
+        f"[green]imported {result.imported}[/], "
+        f"already_have {result.already_have}, duplicates {result.duplicates}"
+    )
+
+
 @app.command("import")
 def import_(
     config: Path = ConfigOption,
     wantlist: Optional[Path] = typer.Option(None, "--wantlist", help="Wantlist .txt"),
     csv: Optional[Path] = typer.Option(None, "--csv", help="exportify CSV"),
     spotify: Optional[str] = typer.Option(None, "--spotify", help="Spotify playlist name or id"),
+    rekordbox: Optional[Path] = typer.Option(None, "--rekordbox", help="Rekordbox collection.xml"),
+    playlist: list[str] = typer.Option([], "--playlist", help="Playlist name (repeatable; required with --rekordbox)"),
+    remap: list[str] = typer.Option([], "--remap", help='Path remap "OLD=NEW" (repeatable)'),
+    force: bool = typer.Option(False, "--force", help="Override the missing-tracks safety guard"),
 ):
     """Import a source into the wants table."""
-    if sum(x is not None for x in (wantlist, csv, spotify)) != 1:
-        console.print("[red]Specify exactly one of --wantlist / --csv / --spotify[/]")
+    if sum(x is not None for x in (wantlist, csv, spotify, rekordbox)) != 1:
+        console.print("[red]Specify exactly one of --wantlist / --csv / --spotify / --rekordbox[/]")
         raise typer.Exit(2)
     cfg, conn = _open(config)
+    if rekordbox is not None:
+        _import_rekordbox(conn, rekordbox, playlist, remap, force)
+        return
     if wantlist is not None:
         source, ref, name = WantlistSource(wantlist), str(wantlist), "wantlist"
     elif csv is not None:
