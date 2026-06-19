@@ -64,3 +64,17 @@ def parse_collection(path) -> tuple[dict[str, RkTrack], dict[str, list[str]]]:
 def list_playlists(path) -> list[tuple[str, int]]:
     _, playlists = parse_collection(path)
     return [(name, len(ids)) for name, ids in playlists.items()]
+
+
+def decode_location(
+    location: str, remap: Optional[list[tuple[str, str]]] = None
+) -> Path:
+    raw = urllib.parse.unquote(urllib.parse.urlparse(location).path)
+    # Windows drive paths decode to "/C:/..."; drop the leading slash.
+    if len(raw) >= 3 and raw[0] == "/" and raw[2] == ":":
+        raw = raw[1:]
+    for old, new in remap or []:
+        if raw.startswith(old):
+            raw = new + raw[len(old):]
+            break
+    return Path(raw)

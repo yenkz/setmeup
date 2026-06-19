@@ -1,4 +1,6 @@
-from setmeup.sources.rekordbox import RkTrack, list_playlists, parse_collection
+from pathlib import Path
+
+from setmeup.sources.rekordbox import RkTrack, decode_location, list_playlists, parse_collection
 
 COLLECTION_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <DJ_PLAYLISTS Version="1.0.0">
@@ -42,3 +44,30 @@ def test_list_playlists_returns_name_and_count(tmp_path):
     f = tmp_path / "collection.xml"
     f.write_text(COLLECTION_XML)
     assert list_playlists(f) == [("Vinyl", 2), ("Gigs", 1)]
+
+
+def test_decode_strips_scheme_and_percent_decodes():
+    assert decode_location(
+        "file://localhost/Users/dj/My%20Track.flac"
+    ) == Path("/Users/dj/My Track.flac")
+
+
+def test_decode_applies_remap_prefix():
+    out = decode_location(
+        "file://localhost/Volumes/Old/x.flac",
+        remap=[("/Volumes/Old", "/Volumes/New")],
+    )
+    assert out == Path("/Volumes/New/x.flac")
+
+
+def test_decode_remap_first_match_wins():
+    out = decode_location(
+        "file://localhost/a/b.flac", remap=[("/a", "/X"), ("/a/b", "/Y")]
+    )
+    assert out == Path("/X/b.flac")
+
+
+def test_decode_windows_drive_strips_leading_slash():
+    assert decode_location(
+        "file://localhost/C:/Music/x.mp3"
+    ) == Path("C:/Music/x.mp3")
