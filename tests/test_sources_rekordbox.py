@@ -1,6 +1,16 @@
+import urllib.parse
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from setmeup.sources.rekordbox import RkTrack, decode_location, list_playlists, parse_collection
+import pytest
+
+from setmeup.sources.rekordbox import (
+    RekordboxSource,
+    RkTrack,
+    decode_location,
+    list_playlists,
+    parse_collection,
+)
 
 COLLECTION_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <DJ_PLAYLISTS Version="1.0.0">
@@ -71,14 +81,6 @@ def test_decode_windows_drive_strips_leading_slash():
     assert decode_location(
         "file://localhost/C:/Music/x.mp3"
     ) == Path("C:/Music/x.mp3")
-
-
-import urllib.parse
-import xml.etree.ElementTree as ET
-
-import pytest
-
-from setmeup.sources.rekordbox import RekordboxSource
 
 
 def _loc(p) -> str:
