@@ -95,3 +95,15 @@ def test_search_exception_marks_failed(conn, make_config):
     counts = fetch_mod.fetch(conn, cfg, client)
 
     assert counts.get("failed") == 1
+
+
+def test_downloaded_path_is_full_path_under_complete(conn, make_config):
+    cfg = make_config()
+    _want(conn)
+    client = FakeClient(
+        files=[{"filename": "A - T.flac", "size": 10, "bitRate": 900, "length": 200}],
+        complete_dir=cfg.complete_dir,
+    )
+    fetch_mod.fetch(conn, cfg, client)
+    done = wants_repo.get_wants_by_status(conn, WantStatus.DOWNLOADED.value)
+    assert done[0].downloaded_path == str(cfg.complete_dir / "A - T.flac")

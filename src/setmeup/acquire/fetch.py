@@ -69,8 +69,10 @@ def _worker(want: Want, client, config, emit) -> None:
         except Exception:  # noqa: BLE001
             continue
         if _is_complete(state):
-            emit(FetchEvent(want.id, {"status": WantStatus.DOWNLOADED.value,
-                                      "downloaded_path": _basename(cand.filename)}))
+            emit(FetchEvent(want.id, {
+                "status": WantStatus.DOWNLOADED.value,
+                "downloaded_path": str(config.complete_dir / _basename(cand.filename)),
+            }))
             return
 
     emit(FetchEvent(want.id, {"status": WantStatus.FAILED.value,
