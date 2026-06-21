@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from setmeup.config import Config, DEFAULT_CONFIG_TOML
 
 
@@ -74,3 +76,27 @@ def test_loads_acquisition_config(tmp_path, monkeypatch):
     assert cfg.search_timeout_seconds == 7
     assert cfg.download_attempts == 2
     assert cfg.duration_tolerance_seconds == 20  # default
+
+
+def test_missing_paths_key_raises_clear_error(tmp_path):
+    cfg_file = tmp_path / "setmeup.toml"
+    cfg_file.write_text(
+        '[paths]\n'
+        f'complete = "{tmp_path}/Complete"\n'
+        f'library = "{tmp_path}/Library"\n'
+        f'trash = "{tmp_path}/Trash"\n'
+        # db deliberately omitted
+    )
+    with pytest.raises(ValueError) as excinfo:
+        Config.from_toml(cfg_file)
+    message = str(excinfo.value)
+    assert "[paths]" in message
+    assert "db" in message
+
+
+def test_missing_paths_section_raises_clear_error(tmp_path):
+    cfg_file = tmp_path / "setmeup.toml"
+    cfg_file.write_text('[quality]\nmin_mp3_bitrate = 320\n')
+    with pytest.raises(ValueError) as excinfo:
+        Config.from_toml(cfg_file)
+    assert "[paths]" in str(excinfo.value)

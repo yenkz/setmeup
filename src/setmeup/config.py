@@ -82,14 +82,19 @@ class Config:
         spotify = data.get("spotify", {})
         acquire = data.get("acquire", {})
 
-        def as_path(value: str) -> Path:
-            return Path(value).expanduser()
+        def require_path(key: str) -> Path:
+            if key not in paths:
+                raise ValueError(
+                    f"{path}: missing required [paths] key '{key}' "
+                    f"(need: complete, library, trash, db)"
+                )
+            return Path(paths[key]).expanduser()
 
         return cls(
-            complete_dir=as_path(paths["complete"]),
-            library_dir=as_path(paths["library"]),
-            trash_dir=as_path(paths["trash"]),
-            db_path=as_path(paths["db"]),
+            complete_dir=require_path("complete"),
+            library_dir=require_path("library"),
+            trash_dir=require_path("trash"),
+            db_path=require_path("db"),
             acoustid_api_key=os.environ.get("ACOUSTID_API_KEY"),
             format_priority=quality.get("format_priority", list(DEFAULT_FORMAT_PRIORITY)),
             min_mp3_bitrate=int(quality.get("min_mp3_bitrate", 320)),
